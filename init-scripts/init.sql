@@ -1,0 +1,5 @@
+CREATE TABLE videos (
+  id  VARCHAR(100),
+  views INTEGER,
+  last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);

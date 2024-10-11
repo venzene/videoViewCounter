@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video View Counter</title>
+    <script>
+        function setFormAction(actionBase) {
+            const videoID = document.getElementById("videoID").value;
+            if (videoID) {
+                document.getElementById("videoForm").action = actionBase + "/" + encodeURIComponent(videoID);
+                document.getElementById("videoForm").submit();
+            } else {
+                alert("Please enter a video ID.");
+            }
+        }
+    </script>
+</head>
+<body>
+    <h1>Video View Counter</h1>
+    <form id="videoForm" method="post">
+        <label for="videoID">Enter Video ID:</label>
+        <input type="text" id="videoID" name="videoID" required>
+        <button type="button" onclick="setFormAction('/increment');">Watch Video</button>
+        <button type="button" onclick="setFormAction('/views');">Check Views</button>
+    </form>
+
+    <h2>Video List</h2>
+    <table border="1">
+        <thead>
+            <tr>
+                <th>Video ID</th>
+                <th>Views</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{range .}}
+            <tr>
+                <td>{{.Id}}</td>
+                <td>{{.Views}}</td>
+            </tr>
+            {{else}}
+            <tr>
+                <td colspan="2">No videos available</td>
+            </tr>
+            {{end}}
+        </tbody>
+    </table>
+</body>
+</html>
