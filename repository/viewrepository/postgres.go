@@ -24,7 +24,12 @@ func (db *postgresRepo) GetView(ctx context.Context, videoId string) (view int, 
 	if err != nil {
 		return 0, err
 	}
-	defer tx.Rollback() // TODO: check for err than rollback
+	// TODO: check for err than rollback
+	defer func() {
+		if err != nil {
+			tx.Rollback()
+		}
+	}()
 
 	row := tx.QueryRow("SELECT views FROM videos WHERE id = $1", videoId)
 	err = row.Scan(&view)

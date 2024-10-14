@@ -2,20 +2,87 @@ package viewrepository
 
 import (
 	"context"
+	"database/sql"
+	"fmt"
+	"log"
+	"os"
 	"reflect"
 	"testing"
 	"view_count/model"
+
+	"github.com/docker/go-connections/nat"
+	_ "github.com/lib/pq"
+	"github.com/testcontainers/testcontainers-go"
+	"github.com/testcontainers/testcontainers-go/wait"
 )
 
-type testCase struct {
-	testName       string
-	vid            string
-	expectedViews  int
-	expectedResult []model.VideoInfo
-	expectedErr    error
+var testSqlDB *sql.DB
+
+func cleanupDB(db *sql.DB) error {
+	_, err := db.Exec("DELETE FROM videos;")
+	return err
 }
 
-func Test_IM_GetView(t *testing.T) {
+func createContainer() (testcontainers.Container, *sql.DB, error) {
+	port := "5432/tcp"
+	info := map[string]string{
+		"POSTGRES_USER":     "postgres",
+		"POSTGRES_PASSWORD": "password",
+		"POSTGRES_DB":       "test",
+	}
+	req := testcontainers.GenericContainerRequest{
+		ContainerRequest: testcontainers.ContainerRequest{
+			Image:        "postgres:latest",
+			ExposedPorts: []string{port},
+			Env:          info,
+			WaitingFor: wait.ForSQL(nat.Port(port), "postgres", func(host string, port nat.Port) string {
+				return fmt.Sprintf("host=localhost port=%s user=postgres password=password dbname=test sslmode=disable", port.Port())
+			}),
+		},
+		Started: true,
+	}
+	container, err := testcontainers.GenericContainer(context.Background(), req)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	mappedPort, err := container.MappedPort(context.Background(), nat.Port(port))
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	url := fmt.Sprintf("host=localhost port=%s user=postgres password=password dbname=test sslmode=disable", mappedPort.Port())
+	db, err := sql.Open("postgres", url)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return container, db, nil
+}
+
+func TestMain(m *testing.M) {
+	container, testDB, err := createContainer()
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer testDB.Close()
+	defer container.Terminate(context.Background())
+
+	// Setup the database schema
+	_, err = testDB.Exec(`CREATE TABLE IF NOT EXISTS videos (
+            id TEXT PRIMARY KEY,
+            views INT NOT NULL,
+            last_updated TIMESTAMP NOT NULL
+        );`)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	testSqlDB = testDB
+	os.Exit(m.Run())
+}
+
+func Test_DB_GetView(t *testing.T) {
 
 	tests := []testCase{
 		{
@@ -36,12 +103,11 @@ func Test_IM_GetView(t *testing.T) {
 			expectedViews: 10,
 			expectedErr:   nil,
 		},
-		// TODO how to write multiple testcases for above : Done
 	}
 
 	for _, test := range tests {
 
-		testRepo := NewInmemoryRepo()
+		testRepo := NewPostgresRepo(testSqlDB)
 
 		for i := 0; i < test.expectedViews; i++ {
 			testRepo.Increment(context.Background(), test.vid)
@@ -58,12 +124,14 @@ func Test_IM_GetView(t *testing.T) {
 			}
 
 		})
-
+		if err := cleanupDB(testSqlDB); err != nil {
+			t.Fatalf("Error cleaning up database: %v", err)
+		}
 	}
 
 }
 
-func Test_IM_GetAllViews(t *testing.T) {
+func Test_DB_GetAllViews(t *testing.T) {
 
 	tests := []testCase{
 		{
@@ -86,7 +154,7 @@ func Test_IM_GetAllViews(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		testRepo := NewInmemoryRepo()
+		testRepo := NewPostgresRepo(testSqlDB)
 
 		for i := 0; i < len(test.expectedResult); i++ {
 			for j := 1; j <= test.expectedResult[i].Views; j++ {
@@ -116,62 +184,39 @@ func Test_IM_GetAllViews(t *testing.T) {
 				t.Fatalf("Expected %v, but got %v", expectedMap, resultMap)
 			}
 		})
+		if err := cleanupDB(testSqlDB); err != nil {
+			t.Fatalf("Error cleaning up database: %v", err)
+		}
 	}
 }
 
-func Test_IM_Increment(t *testing.T) {
-
-	case1 := "video does not exists"
-	case2 := "video already exists"
+func Test_DB_Increment(t *testing.T) {
 
 	tests := []testCase{
 		{
-			vid:           "video1",
-			testName:      case1,
-			expectedViews: 1,
-			expectedErr:   nil,
-		},
-		{
-			vid:           "video2",
-			testName:      case2,
-			expectedViews: 4,
-			expectedErr:   nil,
+			testName:    "Increment",
+			expectedErr: nil,
 		},
 	}
 
 	for _, test := range tests {
 
-		testRepo := NewInmemoryRepo()
+		testRepo := NewPostgresRepo(testSqlDB)
 
-		if test.testName == case1 {
-			t.Run(test.testName, func(t *testing.T) {
-				err := testRepo.Increment(context.Background(), test.vid)
-				if err != test.expectedErr {
-					t.Fatalf("Expected %v, got %v", test.expectedErr, err)
-				}
-				result, _ := testRepo.GetView(context.Background(), test.vid)
-				if result != test.expectedViews {
-					t.Fatalf("Expected %v, got %v", test.expectedViews, result)
-				}
-			})
-		} else {
-			t.Run(test.testName, func(t *testing.T) {
-				for i := 0; i < test.expectedViews; i++ {
-					err := testRepo.Increment(context.Background(), test.vid)
-					if err != test.expectedErr {
-						t.Fatalf("Expected %v, got %v", test.expectedErr, err)
-					}
-				}
-				result, _ := testRepo.GetView(context.Background(), test.vid)
-				if result != test.expectedViews {
-					t.Fatalf("Expected %v, got %v", test.expectedViews, result)
-				}
-			})
+		t.Run(test.testName, func(t *testing.T) {
+			err := testRepo.Increment(context.Background(), "video1")
+			if err != test.expectedErr {
+				t.Fatalf("Expected %v, got %v", test.expectedErr, err)
+			}
+		})
+		if err := cleanupDB(testSqlDB); err != nil {
+			t.Fatalf("Error cleaning up database: %v", err)
 		}
 	}
+
 }
 
-func Test_IM_GetTopVideos(t *testing.T) {
+func Test_DB_GetTopVideos(t *testing.T) {
 
 	tests := []testCase{
 		{
@@ -195,7 +240,7 @@ func Test_IM_GetTopVideos(t *testing.T) {
 
 	for _, test := range tests {
 
-		testRepo := NewInmemoryRepo()
+		testRepo := NewPostgresRepo(testSqlDB)
 
 		for i := 0; i < len(test.expectedResult); i++ {
 			for j := 0; j < test.expectedResult[i].Views; j++ {
@@ -216,10 +261,13 @@ func Test_IM_GetTopVideos(t *testing.T) {
 				}
 			}
 		})
+		if err := cleanupDB(testSqlDB); err != nil {
+			t.Fatalf("Error cleaning up database: %v", err)
+		}
 	}
 }
 
-func Test_IM_GetRecentVideos(t *testing.T) {
+func Test_DB_GetRecentVideos(t *testing.T) {
 
 	tests := []testCase{
 		{
@@ -245,7 +293,7 @@ func Test_IM_GetRecentVideos(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		testRepo := NewInmemoryRepo()
+		testRepo := NewPostgresRepo(testSqlDB)
 
 		for i := len(test.expectedResult) - 1; i >= 0; i-- {
 			for j := 0; j < test.expectedResult[i].Views; j++ {
@@ -263,6 +311,9 @@ func Test_IM_GetRecentVideos(t *testing.T) {
 				if v.Id != test.expectedResult[i].Id || v.Views != test.expectedResult[i].Views {
 					t.Fatalf("Expected result %v, got %v", test.expectedResult[i], v)
 				}
+			}
+			if err := cleanupDB(testSqlDB); err != nil {
+				t.Fatalf("Error cleaning up database: %v", err)
 			}
 		})
 	}

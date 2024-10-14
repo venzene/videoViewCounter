@@ -59,19 +59,19 @@ func main() {
 
 	vs = viewservice.NewInstrumentingService(requestCount, requestLatency, logger, vs)
 
-	endpoints := viewservice.MakeEndpoints(vs)
+	// endpoints := viewservice.MakeEndpoints(vs)
 
-	handler := viewservice.MakeHandler(endpoints, logger)
+	// r := viewservice.MakeHandler(endpoints, logger)
 
-	// h := NewHandler(vs)
+	h := NewHandler(vs)
 
-	// r := routeIntialiser(*h)
+	r := routeIntialiser(*h)
 
 	// TODO: handle intrupt gracefully
 
 	server := http.Server{
 		Addr:    ":8080",
-		Handler: handler,
+		Handler: r,
 	}
 
 	sigs := make(chan os.Signal, 1)
@@ -98,7 +98,7 @@ func main() {
 
 	go func() {
 		log.Println("Server started on :8080")
-		log.Fatal(http.ListenAndServe(":8080", handler))
+		log.Fatal(http.ListenAndServe(":8080", r))
 	}()
 
 	<-done

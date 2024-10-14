@@ -18,7 +18,7 @@ type Repository interface {
 	// TODO: write expectation of result
 	GetView(ctx context.Context, videoId string) (view int, err error)
 
-	GetTopVideos(ctx context.Context, n int) (info []model.VideoInfo, err error) // add n as param
+	GetTopVideos(ctx context.Context, n int) (info []model.VideoInfo, err error) // add n as param : Done
 
-	GetRecentVideos(ctx context.Context, n int) (info []model.VideoInfo, err error) // n as param
+	GetRecentVideos(ctx context.Context, n int) (info []model.VideoInfo, err error) // n as param : Done
 }

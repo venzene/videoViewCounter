@@ -8,7 +8,7 @@ import (
 )
 
 var (
-	ErrInvalidArgument = errors.New("Invalid Argument")
+	ErrInvalidArgument = errors.New("invalid Argument")
 )
 
 // TODO add middleware of Service for logging and instrumenting : done
