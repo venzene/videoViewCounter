@@ -4,317 +4,407 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
-	"os"
 	"reflect"
 	"testing"
 	"view_count/model"
 
-	"github.com/docker/go-connections/nat"
-	_ "github.com/lib/pq"
-	"github.com/testcontainers/testcontainers-go"
-	"github.com/testcontainers/testcontainers-go/wait"
+	"github.com/DATA-DOG/go-sqlmock"
 )
 
-var testSqlDB *sql.DB
+func Test_db_GetView(t *testing.T) {
 
-func cleanupDB(db *sql.DB) error {
-	_, err := db.Exec("DELETE FROM videos;")
-	return err
-}
-
-func createContainer() (testcontainers.Container, *sql.DB, error) {
-	port := "5432/tcp"
-	info := map[string]string{
-		"POSTGRES_USER":     "postgres",
-		"POSTGRES_PASSWORD": "password",
-		"POSTGRES_DB":       "test",
-	}
-	req := testcontainers.GenericContainerRequest{
-		ContainerRequest: testcontainers.ContainerRequest{
-			Image:        "postgres:latest",
-			ExposedPorts: []string{port},
-			Env:          info,
-			WaitingFor: wait.ForSQL(nat.Port(port), "postgres", func(host string, port nat.Port) string {
-				return fmt.Sprintf("host=localhost port=%s user=postgres password=password dbname=test sslmode=disable", port.Port())
-			}),
-		},
-		Started: true,
-	}
-	container, err := testcontainers.GenericContainer(context.Background(), req)
+	database, mock, err := sqlmock.New()
 	if err != nil {
-		log.Fatal(err)
+		t.Fatalf("Failed to connect to the database: %v", err)
 	}
+	testRepo := NewPostgresRepo(database)
 
-	mappedPort, err := container.MappedPort(context.Background(), nat.Port(port))
+	defer database.Close()
+
+	videoId := "video0"
+
+	t.Run("New video, should insert and return 0 views", func(t *testing.T) {
+
+		mock.ExpectBegin()
+
+		mock.ExpectQuery("SELECT views FROM videos WHERE id = \\$1").
+			WithArgs(videoId).
+			WillReturnError(sql.ErrNoRows)
+
+		mock.ExpectExec("INSERT INTO videos \\(id, views\\) VALUES \\(\\$1, 0\\)").
+			WithArgs(videoId).
+			WillReturnResult(sqlmock.NewResult(1, 1))
+
+		mock.ExpectCommit()
+
+		result, err := testRepo.GetView(context.Background(), videoId)
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+
+		if result != 0 {
+			t.Errorf("Expected 0, but got %v", result)
+		}
+
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Errorf("There were unmet expectations: %v", err)
+		}
+	})
+
+	t.Run("Existing Video, should return its view count", func(t *testing.T) {
+
+		mock.ExpectBegin()
+
+		mock.ExpectQuery("SELECT views FROM videos WHERE id = \\$1").
+			WithArgs(videoId).
+			WillReturnRows(sqlmock.NewRows([]string{"views"}).
+			AddRow(2))
+
+		mock.ExpectCommit()
+
+		result, err := testRepo.GetView(context.Background(), videoId)
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+
+		if result != 2 {
+			t.Errorf("Expected 2, but got %v", result)
+		}
+
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Errorf("There were unmet expectations : %v", err)
+		}
+	})
+
+	t.Run("Error on transaction begin", func(t *testing.T) {
+
+		mock.ExpectBegin().
+			WillReturnError(fmt.Errorf("transaction begin error"))
+
+		result, err := testRepo.GetView(context.Background(), videoId)
+		if err == nil {
+			t.Fatal("Expected error but got no error.")
+		}
+		if result != 0 {
+			t.Fatalf("Expected 0 views, but got %v", result)
+		}
+
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Errorf("There were unmet expectations : %v", err)
+		}
+	})
+
+	t.Run("Error scaning the row", func(t *testing.T) {
+		mock.ExpectBegin()
+		mock.ExpectQuery("SELECT views FROM videos WHERE id = \\$1").
+			WithArgs(videoId).
+			WillReturnRows(sqlmock.NewRows([]string{"views"}).
+			AddRow(nil))
+
+		mock.ExpectRollback()
+
+		result, err := testRepo.GetView(context.Background(), videoId)
+		if err == nil {
+			t.Fatal("Expected error but got no error.")
+		}
+		if result != 0 {
+			t.Fatalf("Expected 0 views, but got %v", result)
+		}
+
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Errorf("There were unmet expectations : %v", err)
+		}
+	})
+
+	t.Run("New Video, Error inserting the video", func(t *testing.T) {
+		mock.ExpectBegin()
+		mock.ExpectQuery("SELECT views FROM videos WHERE id = \\$1").
+			WithArgs(videoId).
+			WillReturnError(sql.ErrNoRows)
+
+			mock.ExpectExec("INSERT INTO videos \\(id, views\\) VALUES \\(\\$1, 0\\)").
+			WithArgs(videoId).
+			WillReturnError(fmt.Errorf("Error inserting the video"))
+
+		mock.ExpectRollback()
+
+		result, err := testRepo.GetView(context.Background(), videoId)
+		if err == nil {
+			t.Fatal("Expected error but got no error.")
+		}
+		if result != 0 {
+			t.Fatalf("Expected 0 views, but got %v", result)
+		}
+
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Errorf("There were unmet expectations : %v", err)
+		}
+	})
+}
+
+func Test_db_GetAllViews(t *testing.T) {
+	database, mock, err := sqlmock.New()
 	if err != nil {
-		log.Fatal(err)
+		t.Fatalf("Failed to connect to the database: %v", err)
 	}
 
-	url := fmt.Sprintf("host=localhost port=%s user=postgres password=password dbname=test sslmode=disable", mappedPort.Port())
-	db, err := sql.Open("postgres", url)
+	testRepo := NewPostgresRepo(database)
+
+	videoRows := sqlmock.NewRows([]string{"id", "views"}).AddRow("video1", 2).AddRow("video2", 3)
+
+	defer database.Close()
+
+	t.Run("Get All Views", func(t *testing.T) {
+		mock.ExpectQuery("SELECT id, views FROM videos").
+			WillReturnRows(videoRows)
+
+		result, err := testRepo.GetAllViews(context.Background())
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+
+		expectedResult := []model.VideoInfo{
+			{Id: "video1", Views: 2},
+			{Id: "video2", Views: 3},
+		}
+
+		if !reflect.DeepEqual(result, expectedResult) {
+			t.Errorf("Expected %+v, but got %+v", expectedResult, result)
+		}
+
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Errorf("There were unmet expectations : %v", err)
+		}
+	})
+
+	t.Run("Query throws an error", func(t *testing.T) {
+		mock.ExpectQuery("SELECT id, views FROM videos").
+			WillReturnError(fmt.Errorf("Custom Error"))
+
+		result, err := testRepo.GetAllViews(context.Background())
+		if err == nil {
+			t.Fatal("Expected error, but got none")
+		}
+
+		if result != nil {
+			t.Fatalf("Expected nil, but got %+v", result)
+		}
+
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Errorf("There were unmet expectations : %v", err)
+		}
+	})
+
+	t.Run("Error scanning a row", func(t *testing.T) {
+		mock.ExpectQuery("SELECT id, views FROM videos").
+			WillReturnRows(sqlmock.NewRows([]string{"views"}).
+			AddRow(nil))
+
+		result, err := testRepo.GetAllViews(context.Background())
+		if err == nil {
+			t.Fatal("Expected error, but got none")
+		}
+
+		if result != nil {
+			t.Fatalf("Expected nil, but got %+v", result)
+		}
+
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Errorf("There were unmet expectations : %v", err)
+		}
+	})
+}
+
+func Test_db_Increment(t *testing.T) {
+	database, mock, err := sqlmock.New()
 	if err != nil {
-		return nil, nil, err
+		t.Fatalf("Failed to connect to the databse: %v", err)
 	}
 
-	return container, db, nil
-}
+	testRepo := NewPostgresRepo(database)
 
-func TestMain(m *testing.M) {
-	container, testDB, err := createContainer()
+	defer database.Close()
+
+	videoId := "video1"
+	// not able to match the query without these "\s*" and "(?i)"
+	mock.ExpectExec(`(?i)INSERT INTO videos\s*\(id,\s*views,\s*last_updated\)\s*VALUES\s*\(\$1,\s*1,\s*NOW\(\)\)\s*ON CONFLICT\s*\(id\)\s*DO\s*UPDATE\s*SET\s*views\s*=\s*videos\.views\s*\+\s*1,\s*last_updated\s*=\s*NOW\(\)`).
+		WithArgs(videoId).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+
+	err = testRepo.Increment(context.Background(), "video1")
 	if err != nil {
-		log.Fatal(err)
+		t.Fatalf("Unexpected error while incrementing: %v", err)
 	}
-	defer testDB.Close()
-	defer container.Terminate(context.Background())
 
-	// Setup the database schema
-	_, err = testDB.Exec(`CREATE TABLE IF NOT EXISTS videos (
-            id TEXT PRIMARY KEY,
-            views INT NOT NULL,
-            last_updated TIMESTAMP NOT NULL
-        );`)
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("There were unmet expectations : %v", err)
+	}
+}
+
+func Test_db_GetTopVideos(t *testing.T) {
+	database, mock, err := sqlmock.New()
 	if err != nil {
-		log.Fatal(err)
+		t.Fatalf("Failed to connect to the database: %v", err)
 	}
 
-	testSqlDB = testDB
-	os.Exit(m.Run())
+	testRepo := NewPostgresRepo(database)
+	defer database.Close()
+
+	n := 3
+
+	mockRows := sqlmock.NewRows([]string{"id", "views"}).
+		AddRow("video1", 20).
+		AddRow("video2", 15).
+		AddRow("video3", 10)
+	
+	expectedVideos := []model.VideoInfo{
+		{Id: "video1", Views: 20},
+		{Id: "video2", Views: 15},
+		{Id: "video3", Views: 10},
+	}
+
+	t.Run("Get top videos", func(t *testing.T) {
+		mock.ExpectQuery("SELECT id, views FROM videos ORDER BY views DESC LIMIT \\$1").
+			WithArgs(n).
+			WillReturnRows(mockRows)
+
+		videos, err := testRepo.GetTopVideos(context.Background(), n)
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+
+		if len(videos) != 3 {
+			t.Errorf("Expected 3 videos, got %d", len(videos))
+		}
+
+		for i, video := range videos {
+			if video.Id != expectedVideos[i].Id || video.Views != expectedVideos[i].Views {
+				t.Errorf("Expected video %+v, got %+v", expectedVideos[i], video)
+			}
+		}
+
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Errorf("There were unmet expectations: %v", err)
+		}
+	})
+
+	t.Run("Error executing the query", func(t *testing.T) {
+		mock.ExpectQuery("SELECT id, views FROM videos ORDER BY views DESC LIMIT \\$1").
+			WithArgs(n).
+			WillReturnError(fmt.Errorf("custom error"))
+
+		videos, err := testRepo.GetTopVideos(context.Background(), n)
+		if err == nil {
+			t.Fatal("Expected error, but got one", err)
+		}
+
+		if videos != nil {
+			t.Fatalf("expected nil, got %v", videos)
+		}
+
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Errorf("There were unmet expectations: %v", err)
+		}
+	})
+
+	t.Run("Error scanning the rows", func(t *testing.T) {
+		mock.ExpectQuery("SELECT id, views FROM videos ORDER BY views DESC LIMIT \\$1").
+			WithArgs(n).
+			WillReturnRows(sqlmock.NewRows([]string{"views"}).
+			AddRow(nil))
+
+		videos, err := testRepo.GetTopVideos(context.Background(), n)
+		if err == nil {
+			t.Fatal("Expected error, but got one", err)
+		}
+
+		if videos != nil {
+			t.Fatalf("expected nil, got %v", videos)
+		}
+
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Errorf("There were unmet expectations: %v", err)
+		}
+	})
+	
 }
 
-func Test_DB_GetView(t *testing.T) {
+func Test_db_GetRecentVideos(t *testing.T) {
+	database, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("Failed to connect to the database: %v", err)
+	}
+	defer database.Close()
 
-	tests := []testCase{
-		{
-			testName:      "Get Views",
-			vid:           "video1",
-			expectedViews: 3,
-			expectedErr:   nil,
-		},
-		{
-			testName:      "Get Views",
-			vid:           "video3",
-			expectedViews: 1,
-			expectedErr:   nil,
-		},
-		{
-			testName:      "Get Views",
-			vid:           "video3",
-			expectedViews: 10,
-			expectedErr:   nil,
-		},
+	testRepo := NewPostgresRepo(database)
+
+	n := 3
+
+	mockRows := sqlmock.NewRows([]string{"id", "views"}).
+		AddRow("video2", 3).
+		AddRow("video1", 5).
+		AddRow("video3", 10)
+
+	expected := []model.VideoInfo{
+		{Id: "video2", Views: 3},
+		{Id: "video1", Views: 5},
+		{Id: "video3", Views: 10},
 	}
 
-	for _, test := range tests {
+	t.Run("Get recent videos", func(t *testing.T) {
+		mock.ExpectQuery("SELECT id, views FROM videos ORDER BY last_updated DESC LIMIT \\$1").
+		WithArgs(n).
+		WillReturnRows(mockRows)
 
-		testRepo := NewPostgresRepo(testSqlDB)
-
-		for i := 0; i < test.expectedViews; i++ {
-			testRepo.Increment(context.Background(), test.vid)
+		result, err := testRepo.GetRecentVideos(context.Background(), n)
+		if err != nil {
+			t.Fatalf("Unexpected error while getting recent videos: %v", err)
 		}
 
-		t.Run(test.testName, func(t *testing.T) {
-			result, err := testRepo.GetView(context.Background(), test.vid)
-			if err != test.expectedErr {
-				t.Errorf("Expected %v, got %v", test.expectedErr, err)
-			}
-
-			if result != test.expectedViews {
-				t.Fatalf("Expected %v, got %v", test.expectedViews, result)
-			}
-
-		})
-		if err := cleanupDB(testSqlDB); err != nil {
-			t.Fatalf("Error cleaning up database: %v", err)
-		}
-	}
-
-}
-
-func Test_DB_GetAllViews(t *testing.T) {
-
-	tests := []testCase{
-		{
-			testName: "Get all videos",
-			expectedResult: []model.VideoInfo{
-				{Id: "video1", Views: 3},
-				{Id: "video2", Views: 1},
-			},
-			expectedErr: nil,
-		},
-		{
-			testName: "Get all videos",
-			expectedResult: []model.VideoInfo{
-				{Id: "video1", Views: 5},
-				{Id: "video2", Views: 7},
-				{Id: "video3", Views: 9},
-			},
-			expectedErr: nil,
-		},
-	}
-
-	for _, test := range tests {
-		testRepo := NewPostgresRepo(testSqlDB)
-
-		for i := 0; i < len(test.expectedResult); i++ {
-			for j := 1; j <= test.expectedResult[i].Views; j++ {
-				testRepo.Increment(context.Background(), test.expectedResult[i].Id)
-
-			}
+		if !reflect.DeepEqual(result, expected) {
+			t.Errorf("Expected %v, but got %v", expected, result)
 		}
 
-		t.Run(test.testName, func(t *testing.T) {
-			result, err := testRepo.GetAllViews(context.Background())
-
-			if err != test.expectedErr {
-				t.Fatalf("Expected error %v, got %v", test.expectedErr, err)
-			}
-
-			resultMap := make(map[string]int)
-			for _, video := range result {
-				resultMap[video.Id] = video.Views
-			}
-
-			expectedMap := make(map[string]int)
-			for _, video := range test.expectedResult {
-				expectedMap[video.Id] = video.Views
-			}
-
-			if !reflect.DeepEqual(resultMap, expectedMap) {
-				t.Fatalf("Expected %v, but got %v", expectedMap, resultMap)
-			}
-		})
-		if err := cleanupDB(testSqlDB); err != nil {
-			t.Fatalf("Error cleaning up database: %v", err)
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Errorf("There were unmet expectations: %v", err)
 		}
-	}
-}
+	})
 
-func Test_DB_Increment(t *testing.T) {
+	t.Run("Error executing the query", func(t *testing.T) {
+		mock.ExpectQuery("SELECT id, views FROM videos ORDER BY last_updated DESC LIMIT \\$1").
+		WithArgs(n).
+		WillReturnError(fmt.Errorf("custom error"))
 
-	tests := []testCase{
-		{
-			testName:    "Increment",
-			expectedErr: nil,
-		},
-	}
-
-	for _, test := range tests {
-
-		testRepo := NewPostgresRepo(testSqlDB)
-
-		t.Run(test.testName, func(t *testing.T) {
-			err := testRepo.Increment(context.Background(), "video1")
-			if err != test.expectedErr {
-				t.Fatalf("Expected %v, got %v", test.expectedErr, err)
-			}
-		})
-		if err := cleanupDB(testSqlDB); err != nil {
-			t.Fatalf("Error cleaning up database: %v", err)
-		}
-	}
-
-}
-
-func Test_DB_GetTopVideos(t *testing.T) {
-
-	tests := []testCase{
-		{
-			testName: "Get all videos",
-			expectedResult: []model.VideoInfo{
-				{Id: "video3", Views: 3},
-				{Id: "video2", Views: 2},
-				{Id: "video1", Views: 1},
-			},
-			expectedErr: nil,
-		},
-		{
-			testName: "Get all videos",
-			expectedResult: []model.VideoInfo{
-				{Id: "video3", Views: 10},
-				{Id: "video1", Views: 3},
-			},
-			expectedErr: nil,
-		},
-	}
-
-	for _, test := range tests {
-
-		testRepo := NewPostgresRepo(testSqlDB)
-
-		for i := 0; i < len(test.expectedResult); i++ {
-			for j := 0; j < test.expectedResult[i].Views; j++ {
-				testRepo.Increment(context.Background(), test.expectedResult[i].Id)
-			}
+		result, err := testRepo.GetRecentVideos(context.Background(), n)
+		if err == nil {
+			t.Fatalf("Expected error but got none")
 		}
 
-		t.Run(test.testName, func(t *testing.T) {
-			result, err := testRepo.GetTopVideos(context.Background(), 3)
-
-			if err != test.expectedErr {
-				t.Fatalf("Expected error %v, got %v", test.expectedErr, err)
-			}
-
-			for i, v := range result {
-				if v.Id != test.expectedResult[i].Id || v.Views != test.expectedResult[i].Views {
-					t.Fatalf("Expected result %v, got %v", test.expectedResult[i], v)
-				}
-			}
-		})
-		if err := cleanupDB(testSqlDB); err != nil {
-			t.Fatalf("Error cleaning up database: %v", err)
+		if result != nil {
+			t.Fatalf("Expected nil, but got %v", result)
 		}
-	}
-}
 
-func Test_DB_GetRecentVideos(t *testing.T) {
-
-	tests := []testCase{
-		{
-			testName: "Get all videos",
-			expectedResult: []model.VideoInfo{
-				{Id: "video2", Views: 2},
-				{Id: "video4", Views: 1},
-				{Id: "video3", Views: 1},
-				{Id: "video1", Views: 1},
-			},
-			expectedErr: nil,
-		},
-		{
-			testName: "Get all videos",
-			expectedResult: []model.VideoInfo{
-				{Id: "video1", Views: 1},
-				{Id: "video2", Views: 1},
-				{Id: "video3", Views: 1},
-				{Id: "video4", Views: 1},
-			},
-			expectedErr: nil,
-		},
-	}
-
-	for _, test := range tests {
-		testRepo := NewPostgresRepo(testSqlDB)
-
-		for i := len(test.expectedResult) - 1; i >= 0; i-- {
-			for j := 0; j < test.expectedResult[i].Views; j++ {
-				testRepo.Increment(context.Background(), test.expectedResult[i].Id)
-			}
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Errorf("There were unmet expectations: %v", err)
 		}
-		t.Run(test.testName, func(t *testing.T) {
-			result, err := testRepo.GetRecentVideos(context.Background(), 4)
+	})
 
-			if err != test.expectedErr {
-				t.Fatalf("Expected error %v, got %v", test.expectedErr, err)
-			}
+	t.Run("Error scanning the rows", func(t *testing.T) {
+		mock.ExpectQuery("SELECT id, views FROM videos ORDER BY last_updated DESC LIMIT \\$1").
+		WithArgs(n).
+		WillReturnRows(sqlmock.NewRows([]string{"views"}).AddRow(nil))
 
-			for i, v := range result {
-				if v.Id != test.expectedResult[i].Id || v.Views != test.expectedResult[i].Views {
-					t.Fatalf("Expected result %v, got %v", test.expectedResult[i], v)
-				}
-			}
-			if err := cleanupDB(testSqlDB); err != nil {
-				t.Fatalf("Error cleaning up database: %v", err)
-			}
-		})
-	}
+		result, err := testRepo.GetRecentVideos(context.Background(), n)
+		if err == nil {
+			t.Fatalf("Expected error but got none")
+		}
+
+		if result != nil {
+			t.Fatalf("Expected nil, but got %v", result)
+		}
+
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Errorf("There were unmet expectations: %v", err)
+		}
+	})
 }

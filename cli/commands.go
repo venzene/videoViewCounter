@@ -1,5 +1,6 @@
 package cli
 
+// TODO refactor. same as http transport layer
 import (
 	"context"
 	"fmt"

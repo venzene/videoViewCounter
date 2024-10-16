@@ -24,7 +24,7 @@ func (db *postgresRepo) GetView(ctx context.Context, videoId string) (view int, 
 	if err != nil {
 		return 0, err
 	}
-	// TODO: check for err than rollback
+	// TODO: check for err than rollback : done
 	defer func() {
 		if err != nil {
 			tx.Rollback()
@@ -35,7 +35,7 @@ func (db *postgresRepo) GetView(ctx context.Context, videoId string) (view int, 
 	err = row.Scan(&view)
 
 	if err == sql.ErrNoRows {
-		_, err = tx.Exec("INSERT INTO videos (id, views) VALUES ($1, 0)", videoId)
+		_, err := tx.Exec("INSERT INTO videos (id, views) VALUES ($1, 0)", videoId)
 		if err != nil {
 			return 0, err
 		}
@@ -59,7 +59,7 @@ func (db *postgresRepo) GetAllViews(ctx context.Context) (info []model.VideoInfo
 		var video model.VideoInfo
 
 		if err = rows.Scan(&video.Id, &video.Views); err != nil {
-			return
+			return nil, err
 		}
 		info = append(info, video)
 	}
@@ -84,7 +84,7 @@ func (db *postgresRepo) GetTopVideos(ctx context.Context, n int) (info []model.V
 		var video model.VideoInfo
 
 		if err = rows.Scan(&video.Id, &video.Views); err != nil {
-			return
+			return nil, err
 		}
 		info = append(info, video)
 	}

@@ -16,7 +16,7 @@ import (
 type inmemoryRepo struct {
 	mu   sync.RWMutex
 	data map[string]*videoData
-	// TODO: create 2 heap. one for count, one for time
+	// TODO: create 2 heap. one for count, one for time : DONE
 	viewHeap VideoViewHeap
 	timeHeap VideoTimeHeap
 }
@@ -101,30 +101,25 @@ func (repo *inmemoryRepo) Increment(ctx context.Context, videoId string) error {
 	video.LastUpdated = time.Now()
 	repo.data[videoId] = video
 
-	if exists {
-		tempViewHeap := make(VideoViewHeap, 0, repo.viewHeap.Len())
-		for _, v := range repo.viewHeap {
-			if v.Id != videoId {
-				tempViewHeap = append(tempViewHeap, v)
+	// TODO use fix : done
+	if !exists {
+		heap.Push(&repo.viewHeap, video)
+		heap.Push(&repo.timeHeap, video)
+	} else {
+		for i, v := range repo.viewHeap {
+			if v.Id == videoId {
+				repo.viewHeap[i].Views = video.Views
+				heap.Fix(&repo.viewHeap, i)
 			}
 		}
 
-		repo.viewHeap = tempViewHeap
-		heap.Init(&repo.viewHeap)
-
-		tempTimeHeap := make(VideoTimeHeap, 0, repo.timeHeap.Len())
-		for _, v := range repo.timeHeap {
-			if v.Id != videoId {
-				tempTimeHeap = append(tempTimeHeap, v)
+		for i, v := range repo.timeHeap {
+			if v.Id == videoId {
+				repo.timeHeap[i].Views = video.Views
+				heap.Fix(&repo.viewHeap, i)
 			}
 		}
-		repo.timeHeap = tempTimeHeap
-		heap.Init(&repo.timeHeap)
 	}
-
-	heap.Push(&repo.viewHeap, video)
-	heap.Push(&repo.timeHeap, video)
-
 	return nil
 }
 

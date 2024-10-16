@@ -11,6 +11,8 @@ type testCase struct {
 	testName       string
 	vid            string
 	expectedViews  int
+	nParams        int
+	testInput      []model.VideoInfo
 	expectedResult []model.VideoInfo
 	expectedErr    error
 }
@@ -26,7 +28,7 @@ func Test_IM_GetView(t *testing.T) {
 		},
 		{
 			testName:      "Get Views",
-			vid:           "video3",
+			vid:           "video2",
 			expectedViews: 1,
 			expectedErr:   nil,
 		},
@@ -34,6 +36,12 @@ func Test_IM_GetView(t *testing.T) {
 			testName:      "Get Views",
 			vid:           "video3",
 			expectedViews: 10,
+			expectedErr:   nil,
+		},
+		{
+			testName:      "Get Views",
+			vid:           "video4",
+			expectedViews: 0,
 			expectedErr:   nil,
 		},
 		// TODO how to write multiple testcases for above : Done
@@ -176,6 +184,7 @@ func Test_IM_GetTopVideos(t *testing.T) {
 	tests := []testCase{
 		{
 			testName: "Get all videos",
+			nParams:  2,
 			expectedResult: []model.VideoInfo{
 				{Id: "video3", Views: 3},
 				{Id: "video2", Views: 2},
@@ -185,6 +194,7 @@ func Test_IM_GetTopVideos(t *testing.T) {
 		},
 		{
 			testName: "Get all videos",
+			nParams:  3,
 			expectedResult: []model.VideoInfo{
 				{Id: "video3", Views: 10},
 				{Id: "video1", Views: 3},
@@ -204,7 +214,7 @@ func Test_IM_GetTopVideos(t *testing.T) {
 		}
 
 		t.Run(test.testName, func(t *testing.T) {
-			result, err := testRepo.GetTopVideos(context.Background(), 3)
+			result, err := testRepo.GetTopVideos(context.Background(), test.nParams)
 
 			if err != test.expectedErr {
 				t.Fatalf("Expected error %v, got %v", test.expectedErr, err)
@@ -224,6 +234,7 @@ func Test_IM_GetRecentVideos(t *testing.T) {
 	tests := []testCase{
 		{
 			testName: "Get all videos",
+			nParams:  4,
 			expectedResult: []model.VideoInfo{
 				{Id: "video2", Views: 2},
 				{Id: "video4", Views: 1},
@@ -234,6 +245,7 @@ func Test_IM_GetRecentVideos(t *testing.T) {
 		},
 		{
 			testName: "Get all videos",
+			nParams:  10,
 			expectedResult: []model.VideoInfo{
 				{Id: "video1", Views: 1},
 				{Id: "video2", Views: 1},
@@ -252,8 +264,9 @@ func Test_IM_GetRecentVideos(t *testing.T) {
 				testRepo.Increment(context.Background(), test.expectedResult[i].Id)
 			}
 		}
+
 		t.Run(test.testName, func(t *testing.T) {
-			result, err := testRepo.GetRecentVideos(context.Background(), 4)
+			result, err := testRepo.GetRecentVideos(context.Background(), test.nParams)
 
 			if err != test.expectedErr {
 				t.Fatalf("Expected error %v, got %v", test.expectedErr, err)
