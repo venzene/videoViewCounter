@@ -1,3 +1,5 @@
+// go:build integration
+
 package viewrepository
 
 // TODO add integration build tag
@@ -17,6 +19,16 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 )
+
+type testCase struct {
+	testName       string
+	vid            string
+	expectedViews  int
+	nParams        int
+	testInput      []model.VideoInfo
+	expectedResult []model.VideoInfo
+	expectedErr    error
+}
 
 var testSqlDB *sql.DB
 

@@ -12,7 +12,7 @@ const (
 	dbPassword = "vishal"
 	// dbName     = "view_count"
 	dbHost = "localhost"
-	dbPort = 5433
+	dbPort = 5432
 )
 
 func Connect(dbName string) (*sql.DB, error) {

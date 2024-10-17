@@ -2,7 +2,6 @@ package viewservice
 
 import (
 	"context"
-	"errors"
 	"view_count/model"
 
 	"github.com/go-kit/kit/endpoint"
@@ -69,10 +68,7 @@ type incrementResponse struct {
 
 func MakeIncrementEndpoint(svc Service) endpoint.Endpoint {
 	return func(ctx context.Context, request any) (any, error) {
-		req, ok := request.(incrementRequest)
-		if !ok {
-			return nil, errors.New("invalid request")
-		}
+		req := request.(incrementRequest)
 		err := svc.Increment(ctx, req.videoId)
 		if err != nil {
 			return nil, err
@@ -91,10 +87,7 @@ type getRecentVideosResponse struct {
 
 func MakeGetRecentVideosEndpoint(svc Service) endpoint.Endpoint {
 	return func(ctx context.Context, request any) (any, error) {
-		req, ok := request.(getRecentVideosRequest)
-		if !ok {
-			return nil, errors.New("invalid request")
-		}
+		req := request.(getRecentVideosRequest)
 		videos, err := svc.GetRecentVideos(ctx, req.n)
 		if err != nil {
 			return nil, err
@@ -113,10 +106,7 @@ type getTopVideosResponse struct {
 
 func MakeGetTopVideosEndpoint(svc Service) endpoint.Endpoint {
 	return func(ctx context.Context, request any) (any, error) {
-		req, ok := request.(getTopVideosRequest)
-		if !ok {
-			return nil, errors.New("invalid request")
-		}
+		req := request.(getTopVideosRequest)
 		videos, err := svc.GetTopVideos(ctx, req.n)
 		if err != nil {
 			return nil, err

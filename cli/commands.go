@@ -17,14 +17,6 @@ func Execute(svc viewservice.Service) error {
 	return rootCmd.Execute()
 }
 
-// var inMemory = &cobra.Command{
-// 	Use:   "inMemory",
-// 	Short: "To run the server with inMemory",
-// 	Run: func(cmd *cobra.Command, args []string) {
-// 		inmemory()
-// 	},
-// }
-
 var getViewCmd = &cobra.Command{
 	Use:   "get-view [id]",
 	Short: "Get a specific view",
@@ -126,13 +118,3 @@ func getRecentViews() {
 	}
 	fmt.Println(videos)
 }
-
-// func inmemory() {
-// 	viewRepo := viewrepository.NewInmemoryRepo()
-// 	vs := viewservice.NewService(viewRepo)
-// 	h := NewHandler(vs)
-// 	r := routeIntialiser(*h)
-// 	log.Println("Server started on :8080")
-// 	log.Fatal(http.ListenAndServe(":8080", r))
-
-// }

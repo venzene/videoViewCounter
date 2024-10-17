@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+	"view_count/cli"
 	"view_count/database.go"
 	"view_count/repository/viewrepository"
 	"view_count/viewservice"
@@ -96,10 +97,10 @@ func main() {
 
 	// TODO: run this with postgress in local machine : Done
 
-	go func() {
-		log.Println("Server started on :8080")
-		log.Fatal(http.ListenAndServe(":8080", r))
-	}()
+	// go func() {
+	// 	log.Println("Server started on :8080")
+	// 	log.Fatal(http.ListenAndServe(":8080", r))
+	// }()
 
 	<-done
 	fmt.Println("Shutting the system now.")
@@ -111,8 +112,9 @@ func main() {
 		log.Fatalf("Server Shutdown Failed: %s", err)
 	}
 	fmt.Println("Server closed gracefully!!")
-	//	if err := cli.Execute(vs); err != nil {
-	//		fmt.Println(err)
-	//		os.Exit(1)
-	//	}
+
+	if err := cli.Execute(vs); err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
 }

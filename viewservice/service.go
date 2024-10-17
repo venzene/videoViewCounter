@@ -62,13 +62,17 @@ func (svc *service) GetView(ctx context.Context, videoId string) (view int, err 
 }
 
 func (svc *service) GetTopVideos(ctx context.Context, n int) (info []model.VideoInfo, err error) {
-
+	if n < 0 {
+		return nil, ErrInvalidArgument
+	}
 	return svc.viewRepo.GetTopVideos(ctx, n)
 
 }
 
 func (svc *service) GetRecentVideos(ctx context.Context, n int) ([]model.VideoInfo, error) {
-
+	if n < 0 {
+		return nil, ErrInvalidArgument
+	}
 	return svc.viewRepo.GetRecentVideos(ctx, n)
 
 }

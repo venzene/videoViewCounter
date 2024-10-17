@@ -127,7 +127,7 @@ func (repo *inmemoryRepo) GetTopVideos(ctx context.Context, n int) (info []model
 	repo.mu.Lock()
 	defer repo.mu.Unlock()
 
-	if n > repo.viewHeap.Len() || n == -1 {
+	if n > repo.viewHeap.Len()  {
 		n = repo.viewHeap.Len()
 	}
 
@@ -152,7 +152,7 @@ func (repo *inmemoryRepo) GetRecentVideos(ctx context.Context, n int) ([]model.V
 	repo.mu.Lock()
 	defer repo.mu.Unlock()
 
-	if n > repo.timeHeap.Len() || n == -1 {
+	if n > repo.timeHeap.Len(){
 		n = repo.timeHeap.Len()
 	}
 

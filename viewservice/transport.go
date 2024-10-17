@@ -3,7 +3,6 @@ package viewservice
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"net/http"
 	"strconv"
 
@@ -14,7 +13,7 @@ import (
 
 // TODO: write gokit client also
 
-// Write unit test cases. Hint: use httptest package
+// Write unit test cases. Hint: use httptest package : done
 func MakeHandler(endpoints Endpoints, logger kitlog.Logger) http.Handler {
 	r := mux.NewRouter()
 
@@ -65,10 +64,7 @@ func encodeResponse(ctx context.Context, w http.ResponseWriter, response any) er
 func decodeGetViewRequest(_ context.Context, r *http.Request) (any, error) {
 	vars := mux.Vars(r)
 	// Validatiaons should be at service level
-	videoId, ok := vars["id"]
-	if !ok {
-		return nil, errors.New("missing video id")
-	}
+	videoId := vars["id"]
 	return getViewRequest{videoId: videoId}, nil
 }
 
@@ -78,37 +74,24 @@ func decodeGetAllViewsRequest(_ context.Context, r *http.Request) (any, error) {
 
 func decodeIncrementRequest(_ context.Context, r *http.Request) (any, error) {
 	vars := mux.Vars(r)
-	videoId, ok := vars["id"]
-	if !ok {
-		return nil, errors.New("missing video id")
-	}
+	videoId := vars["id"]
 	return incrementRequest{videoId: videoId}, nil
 }
 
 func decodeGetRecentVideosRequest(_ context.Context, r *http.Request) (any, error) {
 	vars := mux.Vars(r)
-	nStr, ok := vars["n"]
-	if !ok {
-		return nil, errors.New("missing parameter 'n'")
-	}
+	nStr := vars["n"]
 
-	nInt, err := strconv.Atoi(nStr)
-	if err != nil {
-		return nil, errors.New("invalid parameter 'n', must be an integer")
-	}
+	nInt, _ := strconv.Atoi(nStr)
+
 	return getRecentVideosRequest{n: nInt}, nil
 }
 
 func decodeGetTopVideosRequest(_ context.Context, r *http.Request) (any, error) {
 	vars := mux.Vars(r)
-	nStr, ok := vars["n"]
-	if !ok {
-		return nil, errors.New("missing parameter 'n'")
-	}
+	nStr := vars["n"]
 
-	nInt, err := strconv.Atoi(nStr)
-	if err != nil {
-		return nil, errors.New("invalid parameter 'n', must be an integer")
-	}
+	nInt, _ := strconv.Atoi(nStr)
+
 	return getTopVideosRequest{n: nInt}, nil
 }

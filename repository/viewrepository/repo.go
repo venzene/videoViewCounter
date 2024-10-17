@@ -22,3 +22,4 @@ type Repository interface {
 
 	GetRecentVideos(ctx context.Context, n int) (info []model.VideoInfo, err error) // n as param : Done
 }
+

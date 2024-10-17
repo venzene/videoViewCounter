@@ -10,10 +10,11 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-type testCases struct {
-	testName       string
-	videoId        string
-	expectedErr    error
+type TestCases struct {
+	TestName    string
+	videoId     string
+	expectedErr error
+	NParams     int
 }
 
 func TestGetViews(t *testing.T) {
@@ -24,14 +25,14 @@ func TestGetViews(t *testing.T) {
 
 	svc := NewService(mockRepo)
 
-	tests := []testCases{
+	tests := []TestCases{
 		{
-			testName:    "invalid",
+			TestName:    "invalid",
 			videoId:     "",
 			expectedErr: ErrInvalidArgument,
 		},
 		{
-			testName:    "valid",
+			TestName:    "valid",
 			videoId:     "video1",
 			expectedErr: ErrInvalidArgument,
 		},
@@ -93,14 +94,14 @@ func TestIncrement(t *testing.T) {
 
 	svc := NewService(mockRepo)
 
-	tests := []testCases{
+	tests := []TestCases{
 		{
-			testName:    "invalid",
+			TestName:    "invalid",
 			videoId:     "",
 			expectedErr: ErrInvalidArgument,
 		},
 		{
-			testName:    "valid",
+			TestName:    "valid",
 			videoId:     "video1",
 			expectedErr: ErrInvalidArgument,
 		},
@@ -128,7 +129,14 @@ func TestGetTopVideos(t *testing.T) {
 
 	svc := NewService(mockRepo)
 
-	n := 2
+	tests := []TestCases{
+		{
+			NParams: -1,
+		},
+		{
+			NParams: 2,
+		},
+	}
 
 	expectedResult := []model.VideoInfo{
 		{
@@ -141,12 +149,22 @@ func TestGetTopVideos(t *testing.T) {
 		},
 	}
 
-	mockRepo.EXPECT().GetTopVideos(context.Background(), n).Return(expectedResult, nil)
+	for _, test := range tests {
+		if test.NParams < 0 {
+			result, err := svc.GetTopVideos(context.Background(), test.NParams)
 
-	result, err := svc.GetTopVideos(context.Background(), n)
+			assert.Error(t, err)
+			assert.Equal(t, ErrInvalidArgument, err)
+			assert.Nil(t, result)
+		} else {
+			mockRepo.EXPECT().GetTopVideos(context.Background(), test.NParams).Return(expectedResult, nil)
 
-	assert.NoError(t, err)
-	assert.Equal(t, expectedResult, result)
+			result, err := svc.GetTopVideos(context.Background(), test.NParams)
+
+			assert.NoError(t, err)
+			assert.Equal(t, expectedResult, result)
+		}
+	}
 }
 
 func TestGetRecentVideos(t *testing.T) {
@@ -156,23 +174,43 @@ func TestGetRecentVideos(t *testing.T) {
 	mockRepo := viewrepository.NewMockRepository(ctrl)
 	svc := NewService(mockRepo)
 
-	n := 2
+	tests := []TestCases{
+		{
+			NParams: -1,
+		},
+		{
+			NParams: 2,
+		},
+	}
 
 	expectedResult := []model.VideoInfo{
 		{
 			Id:    "video1",
-			Views: 1,
+			Views: 2,
 		},
 		{
 			Id:    "video2",
-			Views: 2,
+			Views: 1,
 		},
 	}
 
-	mockRepo.EXPECT().GetRecentVideos(context.Background(), n).Return(expectedResult, nil)
+	for _, test := range tests {
+		if test.NParams < 0 {
+			result, err := svc.GetRecentVideos(context.Background(), test.NParams)
 
-	result, err := svc.GetRecentVideos(context.Background(), n)
+			assert.Error(t, err)
+			assert.Equal(t, ErrInvalidArgument, err)
+			assert.Nil(t, result)
 
-	assert.NoError(t, err)
-	assert.Equal(t, expectedResult, result)
+		} else {
+			mockRepo.EXPECT().GetRecentVideos(context.Background(), test.NParams).Return(expectedResult, nil)
+
+			result, err := svc.GetRecentVideos(context.Background(), test.NParams)
+
+			assert.NoError(t, err)
+			assert.Equal(t, expectedResult, result)
+
+		}
+	}
+
 }

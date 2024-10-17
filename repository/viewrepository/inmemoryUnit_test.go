@@ -7,16 +7,6 @@ import (
 	"view_count/model"
 )
 
-type testCase struct {
-	testName       string
-	vid            string
-	expectedViews  int
-	nParams        int
-	testInput      []model.VideoInfo
-	expectedResult []model.VideoInfo
-	expectedErr    error
-}
-
 func Test_IM_GetView(t *testing.T) {
 
 	tests := []testCase{
