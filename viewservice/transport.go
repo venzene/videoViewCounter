@@ -50,7 +50,7 @@ func MakeHandler(endpoints Endpoints, logger kitlog.Logger) http.Handler {
 	return r
 }
 
-func encodeResponse(ctx context.Context, w http.ResponseWriter, response any) error {
+func encodeResponse(_ context.Context, w http.ResponseWriter, response any) error {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	if err, ok := response.(error); ok && err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -81,7 +81,6 @@ func decodeIncrementRequest(_ context.Context, r *http.Request) (any, error) {
 func decodeGetRecentVideosRequest(_ context.Context, r *http.Request) (any, error) {
 	vars := mux.Vars(r)
 	nStr := vars["n"]
-
 	nInt, _ := strconv.Atoi(nStr)
 
 	return getRecentVideosRequest{n: nInt}, nil
@@ -90,7 +89,6 @@ func decodeGetRecentVideosRequest(_ context.Context, r *http.Request) (any, erro
 func decodeGetTopVideosRequest(_ context.Context, r *http.Request) (any, error) {
 	vars := mux.Vars(r)
 	nStr := vars["n"]
-
 	nInt, _ := strconv.Atoi(nStr)
 
 	return getTopVideosRequest{n: nInt}, nil

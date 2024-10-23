@@ -1,71 +1,55 @@
 package cli
 
-// TODO refactor. same as http transport layer
 import (
 	"context"
 	"fmt"
+	"strconv"
+	"strings"
 	"view_count/viewservice"
-
-	"github.com/spf13/cobra"
 )
 
-var rootCmd = &cobra.Command{Use: "practice"}
 var viewService viewservice.Service
 
-func Execute(svc viewservice.Service) error {
+func Execute(svc viewservice.Service, input string) error {
 	viewService = svc
-	return rootCmd.Execute()
-}
 
-var getViewCmd = &cobra.Command{
-	Use:   "get-view [id]",
-	Short: "Get a specific view",
-	Args:  cobra.ExactArgs(1),
-	Run: func(cmd *cobra.Command, args []string) {
+	parts := strings.Fields(input)
+	if len(parts) == 0 {
+		return fmt.Errorf("no command provided")
+	}
+
+	cmd := parts[0]
+	args := parts[1:]
+
+	switch cmd {
+	case "getView":
+		if len(args) != 1 {
+			return fmt.Errorf("get-view requires exactly one argument")
+		}
 		getView(args[0])
-	},
-}
 
-var getAllViewsCmd = &cobra.Command{
-	Use:   "get-all-views",
-	Short: "Get all views",
-	Run: func(cmd *cobra.Command, args []string) {
+	case "getAll":
 		getAllViews()
-	},
-}
 
-var incrementViewCmd = &cobra.Command{
-	Use:   "increment-view [id]",
-	Short: "Increment a specific view",
-	Args:  cobra.ExactArgs(1),
-	Run: func(cmd *cobra.Command, args []string) {
+	case "incre":
+		if len(args) != 1 {
+			return fmt.Errorf("increment-view requires exactly one argument")
+		}
 		incrementView(args[0])
-	},
-}
 
-var getTopTenCmd = &cobra.Command{
-	Use:   "get-top-ten",
-	Short: "Get Top 10 Viewed Video",
-	Run: func(cmd *cobra.Command, args []string) {
-		getTopViews()
-	},
-}
+	case "top":
+		n, _ := strconv.Atoi(args[0])
+		getTopViews(n)
 
-var getRecentCmd = &cobra.Command{
-	Use:   "get-recent",
-	Short: "Get recently Viewed Video",
-	Run: func(cmd *cobra.Command, args []string) {
-		getRecentViews()
-	},
-}
+	case "recent":
+		n, _ := strconv.Atoi(args[0])
+		getRecentViews(n)
 
-func init() {
-	rootCmd.AddCommand(getViewCmd)
-	rootCmd.AddCommand(getAllViewsCmd)
-	rootCmd.AddCommand(incrementViewCmd)
-	rootCmd.AddCommand(getTopTenCmd)
-	rootCmd.AddCommand(getRecentCmd)
-	// rootCmd.AddCommand(inMemory)
+	default:
+		return fmt.Errorf("unknown command: %s", cmd)
+	}
+
+	return nil
 }
 
 func getView(id string) {
@@ -96,12 +80,11 @@ func incrementView(id string) {
 		fmt.Println("Error incrementing the views of this video.", err)
 		return
 	}
-
 }
 
-func getTopViews() {
+func getTopViews(n int) {
 	ctx := context.Background()
-	videos, err := viewService.GetTopVideos(ctx, 10)
+	videos, err := viewService.GetTopVideos(ctx, n)
 	if err != nil {
 		fmt.Println("Error getting top videos.", err)
 		return
@@ -109,9 +92,9 @@ func getTopViews() {
 	fmt.Println(videos)
 }
 
-func getRecentViews() {
+func getRecentViews(n int) {
 	ctx := context.Background()
-	videos, err := viewService.GetRecentVideos(ctx, 10)
+	videos, err := viewService.GetRecentVideos(ctx, n)
 	if err != nil {
 		fmt.Println("Error getting recent videos", err)
 		return
