@@ -58,7 +58,7 @@ func Test_db_GetView(t *testing.T) {
 		mock.ExpectQuery("SELECT views FROM videos WHERE id = \\$1").
 			WithArgs(videoId).
 			WillReturnRows(sqlmock.NewRows([]string{"views"}).
-				AddRow(2))
+			AddRow(2))
 
 		mock.ExpectCommit()
 
@@ -99,7 +99,7 @@ func Test_db_GetView(t *testing.T) {
 		mock.ExpectQuery("SELECT views FROM videos WHERE id = \\$1").
 			WithArgs(videoId).
 			WillReturnRows(sqlmock.NewRows([]string{"views"}).
-				AddRow(nil))
+			AddRow(nil))
 
 		mock.ExpectRollback()
 
@@ -122,7 +122,7 @@ func Test_db_GetView(t *testing.T) {
 			WithArgs(videoId).
 			WillReturnError(sql.ErrNoRows)
 
-		mock.ExpectExec("INSERT INTO videos \\(id, views\\) VALUES \\(\\$1, 0\\)").
+			mock.ExpectExec("INSERT INTO videos \\(id, views\\) VALUES \\(\\$1, 0\\)").
 			WithArgs(videoId).
 			WillReturnError(fmt.Errorf("Error inserting the video"))
 
@@ -198,7 +198,7 @@ func Test_db_GetAllViews(t *testing.T) {
 	t.Run("Error scanning a row", func(t *testing.T) {
 		mock.ExpectQuery("SELECT id, views FROM videos").
 			WillReturnRows(sqlmock.NewRows([]string{"views"}).
-				AddRow(nil))
+			AddRow(nil))
 
 		result, err := testRepo.GetAllViews(context.Background())
 		if err == nil {
@@ -256,7 +256,7 @@ func Test_db_GetTopVideos(t *testing.T) {
 		AddRow("video1", 20).
 		AddRow("video2", 15).
 		AddRow("video3", 10)
-
+	
 	expectedVideos := []model.VideoInfo{
 		{Id: "video1", Views: 20},
 		{Id: "video2", Views: 15},
@@ -311,7 +311,7 @@ func Test_db_GetTopVideos(t *testing.T) {
 		mock.ExpectQuery("SELECT id, views FROM videos ORDER BY views DESC LIMIT \\$1").
 			WithArgs(n).
 			WillReturnRows(sqlmock.NewRows([]string{"views"}).
-				AddRow(nil))
+			AddRow(nil))
 
 		videos, err := testRepo.GetTopVideos(context.Background(), n)
 		if err == nil {
@@ -326,7 +326,7 @@ func Test_db_GetTopVideos(t *testing.T) {
 			t.Errorf("There were unmet expectations: %v", err)
 		}
 	})
-
+	
 }
 
 func Test_db_GetRecentVideos(t *testing.T) {
@@ -353,8 +353,8 @@ func Test_db_GetRecentVideos(t *testing.T) {
 
 	t.Run("Get recent videos", func(t *testing.T) {
 		mock.ExpectQuery("SELECT id, views FROM videos ORDER BY last_updated DESC LIMIT \\$1").
-			WithArgs(n).
-			WillReturnRows(mockRows)
+		WithArgs(n).
+		WillReturnRows(mockRows)
 
 		result, err := testRepo.GetRecentVideos(context.Background(), n)
 		if err != nil {
@@ -372,8 +372,8 @@ func Test_db_GetRecentVideos(t *testing.T) {
 
 	t.Run("Error executing the query", func(t *testing.T) {
 		mock.ExpectQuery("SELECT id, views FROM videos ORDER BY last_updated DESC LIMIT \\$1").
-			WithArgs(n).
-			WillReturnError(fmt.Errorf("custom error"))
+		WithArgs(n).
+		WillReturnError(fmt.Errorf("custom error"))
 
 		result, err := testRepo.GetRecentVideos(context.Background(), n)
 		if err == nil {
@@ -391,8 +391,8 @@ func Test_db_GetRecentVideos(t *testing.T) {
 
 	t.Run("Error scanning the rows", func(t *testing.T) {
 		mock.ExpectQuery("SELECT id, views FROM videos ORDER BY last_updated DESC LIMIT \\$1").
-			WithArgs(n).
-			WillReturnRows(sqlmock.NewRows([]string{"views"}).AddRow(nil))
+		WithArgs(n).
+		WillReturnRows(sqlmock.NewRows([]string{"views"}).AddRow(nil))
 
 		result, err := testRepo.GetRecentVideos(context.Background(), n)
 		if err == nil {

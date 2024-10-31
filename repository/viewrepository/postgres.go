@@ -35,8 +35,8 @@ func (db *postgresRepo) GetView(ctx context.Context, videoId string) (view int, 
 	err = row.Scan(&view)
 
 	if err == sql.ErrNoRows {
-		_, errs := tx.Exec("INSERT INTO videos (id, views) VALUES ($1, 0)", videoId)
-		if errs != nil {
+		_, err := tx.Exec("INSERT INTO videos (id, views) VALUES ($1, 0)", videoId)
+		if err != nil {
 			return 0, err
 		}
 		view = 0
